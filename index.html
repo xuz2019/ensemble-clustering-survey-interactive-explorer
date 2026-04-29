@@ -33,6 +33,9 @@
           <span>Metric</span>
           <select class="metric-select" id="globalMetric"></select>
         </label>
+        <div class="header-button-wrap">
+          <button id="readmeButton" class="secondary-button" type="button" aria-haspopup="dialog" aria-controls="readmeModal" aria-expanded="false">README</button>
+        </div>
       </div>
       <nav class="tabs" aria-label="Explorer sections">
         <button id="overview-tab" class="tab is-active" type="button" data-tab="overview">Overview</button>
@@ -229,6 +232,40 @@
 
       <section id="loadError" class="load-error" hidden></section>
     </main>
+
+    <div id="readmeModal" class="modal-shell" hidden>
+      <div id="readmeBackdrop" class="modal-backdrop"></div>
+      <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="readmeTitle">
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">About This Web</p>
+            <h2 id="readmeTitle">README</h2>
+          </div>
+          <button id="readmeClose" class="icon-button" type="button" aria-label="Close README">Close</button>
+        </div>
+
+        <div class="modal-body">
+          <p id="readmeSummary" class="modal-copy">Loading summary...</p>
+
+          <div class="modal-grid">
+            <article class="modal-card">
+              <h3>What It Covers</h3>
+              <ul id="readmeCoverage" class="modal-list"></ul>
+            </article>
+
+            <article class="modal-card">
+              <h3>Data Sources</h3>
+              <ul id="readmeSources" class="modal-list"></ul>
+            </article>
+          </div>
+
+          <article class="modal-card modal-card-full">
+            <h3>Views</h3>
+            <ul id="readmeViews" class="modal-list"></ul>
+          </article>
+        </div>
+      </section>
+    </div>
 
     <script src="app.js"></script>
   </body>

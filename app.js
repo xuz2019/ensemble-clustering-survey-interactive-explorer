@@ -20,6 +20,7 @@ const state = {
   tab: "overview",
   query: "",
   metric: "NMI",
+  readmeOpen: false,
   overviewBigCategory: "all",
   overviewCategory: "all",
   overviewVenue: "all",
@@ -160,6 +161,19 @@ function bindEvents() {
     render();
   });
 
+  $("#readmeButton").addEventListener("click", () => {
+    state.readmeOpen = true;
+    renderReadme();
+  });
+
+  $("#readmeClose").addEventListener("click", closeReadme);
+  $("#readmeBackdrop").addEventListener("click", closeReadme);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.readmeOpen) {
+      closeReadme();
+    }
+  });
+
   $("#overviewBigCategory").addEventListener("change", (event) => {
     state.overviewBigCategory = event.target.value;
     renderOverview();
@@ -272,6 +286,7 @@ function render() {
   }
   activateTab();
   renderHeader();
+  renderReadme();
   renderOverview();
   renderRanking();
   renderMethods();
@@ -283,6 +298,55 @@ function renderHeader() {
   const generated = new Date(data.generatedAt);
   $("#sourceStamp").textContent = `${data.methods.length} methods across ${data.datasets.length} datasets, generated ${generated.toLocaleString()}`;
   $("#globalMetric").value = state.metric;
+}
+
+function renderReadme() {
+  const modal = $("#readmeModal");
+  const button = $("#readmeButton");
+  if (!modal || !button || !data) {
+    return;
+  }
+  modal.hidden = !state.readmeOpen;
+  button.setAttribute("aria-expanded", state.readmeOpen ? "true" : "false");
+
+  $("#readmeSummary").textContent = `This explorer is a web companion to the ensemble clustering survey. It organizes ${formatCount(
+    data.methods.length
+  )} methods, ${formatCount(data.datasets.length)} datasets, and ${formatCount(
+    data.metrics.length
+  )} evaluation metrics so readers can quickly compare methods, inspect rankings, and view dataset-level behavior.`;
+
+  $("#readmeCoverage").innerHTML = [
+    `Method taxonomy with big and small categories`,
+    `Average performance and average rank across ${formatCount(data.metrics.length)} metrics`,
+    `Dataset-level comparisons and heatmap inspection`,
+    `Paper venue, publication year, runtime, and parameter settings`,
+  ]
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  $("#readmeSources").innerHTML = data.sourceFiles
+    .map((source) => {
+      const sheetCount = source.sheets.length;
+      return `<li><strong>${escapeHtml(source.file)}</strong><span>${formatCount(sheetCount)} sheets loaded</span></li>`;
+    })
+    .join("");
+
+  $("#readmeViews").innerHTML = [
+    ["Overview", "Browse the survey taxonomy and locate papers by category, venue, and year."],
+    ["Ranking", "Compare average ranks for the selected metric, where smaller values are better."],
+    ["Methods", "Inspect each method in detail, including metric profile, runtime, and parameter setup."],
+    ["Datasets", "See which methods perform best on a specific dataset."],
+    ["Heatmap", "Visualize method performance across many datasets at once."],
+  ]
+    .map(
+      ([title, body]) => `<li><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></li>`
+    )
+    .join("");
+}
+
+function closeReadme() {
+  state.readmeOpen = false;
+  renderReadme();
 }
 
 function renderOverview() {
