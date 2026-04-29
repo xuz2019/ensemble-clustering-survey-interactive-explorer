@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ensemble Clustering Review Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <p class="eyebrow">Interactive Review Companion</p>
+        <h1>Ensemble Clustering Review Explorer</h1>
+        <p id="sourceStamp" class="source-stamp">Loading data...</p>
+      </div>
+      <div class="header-controls">
+        <label class="field search-field">
+          <span>Search</span>
+          <input id="globalSearch" type="search" autocomplete="off" placeholder="method, venue, category, parameter">
+        </label>
+        <label class="field compact-field">
+          <span>Metric</span>
+          <select class="metric-select" id="globalMetric"></select>
+        </label>
+      </div>
+      <nav class="tabs" aria-label="Explorer sections">
+        <button class="tab is-active" type="button" data-tab="overview">Overview</button>
+        <button class="tab" type="button" data-tab="methods">Methods</button>
+        <button class="tab" type="button" data-tab="datasets">Datasets</button>
+        <button class="tab" type="button" data-tab="heatmap">Heatmap</button>
+        <button class="tab" type="button" data-tab="tables">Tables</button>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      <section id="overview" class="tab-panel is-active" aria-labelledby="overview-tab">
+        <div id="statsGrid" class="stat-grid"></div>
+
+        <div class="dashboard-grid">
+          <section class="panel span-7">
+            <div class="section-head">
+              <h2>Top Methods</h2>
+              <span id="topMethodsLabel" class="muted"></span>
+            </div>
+            <div id="topMethodsChart" class="chart-frame"></div>
+          </section>
+
+          <section class="panel span-5">
+            <div class="section-head">
+              <h2>Category Means</h2>
+              <span id="categoryMeansLabel" class="muted"></span>
+            </div>
+            <div id="categoryChart" class="chart-frame"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="section-head">
+              <h2>Runtime vs Metric</h2>
+              <span class="muted">mean runtime</span>
+            </div>
+            <div id="runtimeScatter" class="chart-frame"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="section-head">
+              <h2>Hyperparameters</h2>
+              <span class="muted">count vs metric</span>
+            </div>
+            <div id="hyperScatter" class="chart-frame"></div>
+          </section>
+        </div>
+
+        <section class="panel source-panel">
+          <div class="section-head">
+            <h2>Sources</h2>
+            <span class="muted">all sheets loaded</span>
+          </div>
+          <div id="sourceGrid" class="source-grid"></div>
+        </section>
+      </section>
+
+      <section id="methods" class="tab-panel" aria-labelledby="methods-tab">
+        <div class="toolbar">
+          <label class="field">
+            <span>Category</span>
+            <select id="methodCategory"></select>
+          </label>
+          <label class="field">
+            <span>Venue</span>
+            <select id="methodVenue"></select>
+          </label>
+          <label class="field compact-field">
+            <span>Sort</span>
+            <select id="methodSort">
+              <option value="metric-desc">Metric high</option>
+              <option value="metric-asc">Metric low</option>
+              <option value="runtime-asc">Runtime low</option>
+              <option value="runtime-desc">Runtime high</option>
+              <option value="method-asc">Method A-Z</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="method-layout">
+          <section class="panel table-panel">
+            <div class="section-head">
+              <h2>Methods</h2>
+              <span id="methodCountLabel" class="muted"></span>
+            </div>
+            <div id="methodTable" class="table-wrapper"></div>
+          </section>
+
+          <aside class="panel detail-panel">
+            <div id="methodDetail"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="datasets" class="tab-panel" aria-labelledby="datasets-tab">
+        <div class="toolbar">
+          <label class="field wide-field">
+            <span>Dataset</span>
+            <select id="datasetSelect"></select>
+          </label>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="panel span-4">
+            <div class="section-head">
+              <h2>Dataset Profile</h2>
+              <span id="datasetMetaLabel" class="muted"></span>
+            </div>
+            <div id="datasetProfile"></div>
+          </section>
+
+          <section class="panel span-8">
+            <div class="section-head">
+              <h2>Best Methods</h2>
+              <span id="datasetMetricLabel" class="muted"></span>
+            </div>
+            <div id="datasetTopChart" class="chart-frame"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="section-head">
+              <h2>Dataset Ranking</h2>
+              <span id="datasetRankLabel" class="muted"></span>
+            </div>
+            <div id="datasetRanking" class="table-wrapper"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="heatmap" class="tab-panel" aria-labelledby="heatmap-tab">
+        <div class="toolbar heatmap-toolbar">
+          <label class="field">
+            <span>Category</span>
+            <select id="heatmapCategory"></select>
+          </label>
+          <label class="field compact-field">
+            <span>Methods</span>
+            <select id="heatmapMethodCount">
+              <option value="12">12</option>
+              <option value="20" selected>20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+          <label class="field wide-field">
+            <span>Datasets</span>
+            <select id="heatmapDatasets" multiple size="7"></select>
+          </label>
+          <div class="button-row">
+            <button id="spreadDatasets" class="secondary-button" type="button">High spread</button>
+            <button id="resetDatasets" class="secondary-button" type="button">First 12</button>
+          </div>
+        </div>
+
+        <section class="panel">
+          <div class="section-head">
+            <h2>Metric Heatmap</h2>
+            <span id="heatmapLabel" class="muted"></span>
+          </div>
+          <div id="heatmapTable" class="table-wrapper heatmap-wrapper"></div>
+        </section>
+      </section>
+
+      <section id="tables" class="tab-panel" aria-labelledby="tables-tab">
+        <div class="toolbar">
+          <label class="field">
+            <span>Workbook</span>
+            <select id="workbookSelect"></select>
+          </label>
+          <label class="field">
+            <span>Sheet</span>
+            <select id="sheetSelect"></select>
+          </label>
+          <label class="field search-field">
+            <span>Filter</span>
+            <input id="tableSearch" type="search" autocomplete="off" placeholder="filter current sheet">
+          </label>
+        </div>
+
+        <section class="panel table-panel">
+          <div class="section-head">
+            <h2 id="rawTableTitle">Raw Table</h2>
+            <span id="rawTableLabel" class="muted"></span>
+          </div>
+          <div id="rawTable" class="table-wrapper raw-table-wrapper"></div>
+        </section>
+      </section>
+
+      <section id="loadError" class="load-error" hidden></section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
