@@ -324,13 +324,6 @@ function renderReadme() {
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join("");
 
-  $("#readmeSources").innerHTML = data.sourceFiles
-    .map((source) => {
-      const sheetCount = source.sheets.length;
-      return `<li><strong>${escapeHtml(source.file)}</strong><span>${formatCount(sheetCount)} sheets loaded</span></li>`;
-    })
-    .join("");
-
   $("#readmeViews").innerHTML = [
     ["Overview", "Browse the survey taxonomy and locate papers by category, venue, and year."],
     ["Ranking", "Compare average ranks for the selected metric, where smaller values are better."],
