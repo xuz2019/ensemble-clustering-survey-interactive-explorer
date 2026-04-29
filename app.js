@@ -323,7 +323,7 @@ function renderMethods() {
               <td>
                 <div class="method-name">
                   <strong>${escapeHtml(method.method)}</strong>
-                  <span>${escapeHtml(shortName(method.displayName, 76))}</span>
+                  <span>${escapeHtml(methodSubtitle(method))}</span>
                 </div>
               </td>
               <td>${escapeHtml(method.category)}</td>
@@ -371,7 +371,7 @@ function renderMethodDetail() {
     <div class="detail-title">
       <span class="pill">${escapeHtml(method.id)}</span>
       <h2>${escapeHtml(method.method)}</h2>
-      <p>${escapeHtml(method.displayName)}</p>
+      <p>${escapeHtml(methodSubtitle(method))}</p>
     </div>
 
     <div class="meta-grid">
@@ -459,7 +459,7 @@ function renderDatasets() {
         .slice(0, 30)
         .map((row, index) => `<tr class="method-row" data-method-index="${row.method.index}">
           <td>${index + 1}</td>
-          <td><div class="method-name"><strong>${escapeHtml(row.method.method)}</strong><span>${escapeHtml(row.method.id)} - ${escapeHtml(row.method.venue)}</span></div></td>
+          <td><div class="method-name"><strong>${escapeHtml(row.method.method)}</strong><span>${escapeHtml(methodSubtitle(row.method))}</span></div></td>
           <td>${escapeHtml(row.method.category)}</td>
           <td class="numeric">${formatNumber(row.mean, 4)}</td>
           <td class="numeric">${formatMaybeNumber(row.std, 4)}</td>
@@ -512,7 +512,7 @@ function renderHeatmap() {
     <tbody>
       ${methods
         .map((method) => `<tr class="method-row" data-method-index="${method.index}">
-          <td><div class="method-name"><strong>${escapeHtml(method.id)}</strong><span>${escapeHtml(shortName(method.method, 34))}</span></div></td>
+          <td><div class="method-name"><strong>${escapeHtml(method.id)}</strong><span>${escapeHtml(shortName(method.method, 48))}</span></div></td>
           ${selectedDatasets
             .map((datasetName) => {
               const value = datasetValue(method.index, state.metric, datasetName, "mean");
@@ -654,7 +654,10 @@ function matchesGlobalQuery(method) {
   const text = [
     method.id,
     method.method,
+    method.paperTitle,
+    method.citationKey,
     method.displayName,
+    method.experimentLabel,
     method.category,
     method.venue,
     method.parameterSetup,
@@ -663,6 +666,11 @@ function matchesGlobalQuery(method) {
     .join(" ")
     .toLowerCase();
   return text.includes(state.query);
+}
+
+function methodSubtitle(method) {
+  const parts = [method.id, method.citationKey, method.venue].filter(Boolean);
+  return parts.join(" - ");
 }
 
 function metricValue(method) {
