@@ -1,13 +1,36 @@
-# Ensemble Clustering Survey Interactive Explorer
+# Ensemble Clustering Review Explorer
 
-This repository contains only the static interactive visualization page and its generated JSON data.
+Static web companion for the review data in:
 
-Open locally with:
+- `all_tables.xlsx`
+- `mean_average_8Metrics.xlsx`
+- `mean_results.xlsx`
+- `std_results.xlsx`
+
+The generated page uses only HTML, CSS, JavaScript, and `data/review-data.json`.
+It can be hosted directly with GitHub Pages.
+
+## Local Preview
+
+From this folder:
 
 ```powershell
 python -m http.server 8000
 ```
 
-Then visit `http://localhost:8000`.
+Then open:
 
-No manuscript source, PDF, LaTeX files, or original Excel workbooks are included in this repository.
+```text
+http://localhost:8000
+```
+
+## Regenerate Data
+
+From the repository root:
+
+```powershell
+python interactive_review_explorer\tools\extract_xlsx_data.py
+```
+
+The extractor reads every sheet from the four source workbooks and writes the
+normalized plus raw workbook data to `data/review-data.json`.

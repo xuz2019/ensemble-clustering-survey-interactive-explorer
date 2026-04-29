@@ -20,17 +20,21 @@ const state = {
   tab: "overview",
   query: "",
   metric: "NMI",
+  overviewBigCategory: "all",
+  overviewCategory: "all",
+  overviewVenue: "all",
+  overviewSort: "year-desc",
+  rankingBigCategory: "all",
+  rankingCategory: "all",
+  rankingVenue: "all",
   methodCategory: "all",
   methodVenue: "all",
   methodSort: "metric-desc",
   heatmapCategory: "all",
-  heatmapMethodCount: 20,
+  heatmapMethodCount: "all",
   selectedMethodIndex: 0,
   datasetName: "",
   heatmapDatasets: [],
-  tableWorkbook: "",
-  tableSheet: "",
-  tableQuery: "",
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -56,7 +60,8 @@ async function init() {
 
 function deriveData() {
   state.metric = data.metrics[0] || "NMI";
-  derived.categories = unique(data.methods.map((method) => method.category).filter(Boolean)).sort();
+  derived.categories = unique(data.methods.map((method) => displaySmallCategory(method)).filter(Boolean)).sort();
+  derived.bigCategories = unique(data.methods.map((method) => displayBigCategory(method)).filter(Boolean)).sort();
   derived.venues = unique(data.methods.map((method) => method.venue).filter(Boolean)).sort();
   derived.datasetNames = data.datasets.map((dataset) => dataset.name);
   derived.datasetByName = new Map(data.datasets.map((dataset) => [dataset.name, dataset]));
@@ -70,12 +75,48 @@ function deriveData() {
 
   state.datasetName = derived.datasetNames[0] || "";
   state.heatmapDatasets = derived.datasetNames.slice(0, 12);
-  state.tableWorkbook = data.sourceFiles[0]?.file || "";
-  state.tableSheet = data.rawWorkbooks[state.tableWorkbook]?.sheetOrder[0] || "";
 }
 
 function setupControls() {
   fillSelect($("#globalMetric"), data.metrics.map((metric) => option(metric, metric)), state.metric);
+  fillSelect(
+    $("#overviewBigCategory"),
+    [option("all", "All big categories")].concat(
+      derived.bigCategories.map((category) => option(category, category))
+    ),
+    state.overviewBigCategory
+  );
+  fillSelect(
+    $("#overviewCategory"),
+    [option("all", "All small categories")].concat(
+      derived.categories.map((category) => option(category, category))
+    ),
+    state.overviewCategory
+  );
+  fillSelect(
+    $("#overviewVenue"),
+    [option("all", "All venues")].concat(derived.venues.map((venue) => option(venue, venue))),
+    state.overviewVenue
+  );
+  fillSelect(
+    $("#rankingBigCategory"),
+    [option("all", "All big categories")].concat(
+      derived.bigCategories.map((category) => option(category, category))
+    ),
+    state.rankingBigCategory
+  );
+  fillSelect(
+    $("#rankingCategory"),
+    [option("all", "All small categories")].concat(
+      derived.categories.map((category) => option(category, category))
+    ),
+    state.rankingCategory
+  );
+  fillSelect(
+    $("#rankingVenue"),
+    [option("all", "All venues")].concat(derived.venues.map((venue) => option(venue, venue))),
+    state.rankingVenue
+  );
   fillSelect(
     $("#methodCategory"),
     [option("all", "All categories")].concat(derived.categories.map((category) => option(category, category))),
@@ -96,13 +137,7 @@ function setupControls() {
     data.datasets.map((dataset) => option(dataset.name, dataset.label)),
     state.datasetName
   );
-  fillSelect(
-    $("#workbookSelect"),
-    data.sourceFiles.map((source) => option(source.file, source.file)),
-    state.tableWorkbook
-  );
-  fillSheetSelect();
-  fillHeatmapDatasetSelect();
+  renderHeatmapDatasetPicker();
 }
 
 function bindEvents() {
@@ -125,6 +160,43 @@ function bindEvents() {
     render();
   });
 
+  $("#overviewBigCategory").addEventListener("change", (event) => {
+    state.overviewBigCategory = event.target.value;
+    renderOverview();
+  });
+
+  $("#overviewCategory").addEventListener("change", (event) => {
+    state.overviewCategory = event.target.value;
+    renderOverview();
+  });
+
+  $("#overviewVenue").addEventListener("change", (event) => {
+    state.overviewVenue = event.target.value;
+    renderOverview();
+  });
+
+  $("#overviewSort").addEventListener("change", (event) => {
+    state.overviewSort = event.target.value;
+    renderOverview();
+  });
+
+  $("#rankingBigCategory").addEventListener("change", (event) => {
+    state.rankingBigCategory = event.target.value;
+    renderRanking();
+  });
+
+  $("#rankingCategory").addEventListener("change", (event) => {
+    state.rankingCategory = event.target.value;
+    renderRanking();
+  });
+
+  $("#rankingVenue").addEventListener("change", (event) => {
+    state.rankingVenue = event.target.value;
+    renderRanking();
+  });
+
+  $("#overviewTable").addEventListener("click", handleMethodOpen);
+  $("#rankingTable").addEventListener("click", handleRankingPick);
   $("#methodCategory").addEventListener("change", (event) => {
     state.methodCategory = event.target.value;
     renderMethods();
@@ -140,9 +212,9 @@ function bindEvents() {
     renderMethods();
   });
 
-  $("#methodTable").addEventListener("click", handleMethodPick);
-  $("#datasetRanking").addEventListener("click", handleMethodPick);
-  $("#heatmapTable").addEventListener("click", handleMethodPick);
+  $("#methodTable").addEventListener("click", handleRankingPick);
+  $("#datasetRanking").addEventListener("click", handleMethodOpen);
+  $("#heatmapTable").addEventListener("click", handleMethodOpen);
 
   $("#datasetSelect").addEventListener("change", (event) => {
     state.datasetName = event.target.value;
@@ -155,42 +227,42 @@ function bindEvents() {
   });
 
   $("#heatmapMethodCount").addEventListener("change", (event) => {
-    state.heatmapMethodCount = Number(event.target.value);
+    state.heatmapMethodCount = event.target.value;
     renderHeatmap();
   });
 
-  $("#heatmapDatasets").addEventListener("change", (event) => {
-    state.heatmapDatasets = Array.from(event.target.selectedOptions).map((selected) => selected.value);
+  $("#heatmapDatasetsButton").addEventListener("click", (event) => {
+    event.stopPropagation();
+    setHeatmapDatasetMenuOpen($("#heatmapDatasetsMenu").hidden);
+  });
+
+  $("#heatmapDatasetsList").addEventListener("change", (event) => {
+    const input = event.target.closest("input[type='checkbox'][data-dataset-name]");
+    if (!input) {
+      return;
+    }
+    const datasetName = input.dataset.datasetName;
+    if (input.checked) {
+      if (!state.heatmapDatasets.includes(datasetName)) {
+        state.heatmapDatasets = state.heatmapDatasets.concat(datasetName);
+      }
+    } else {
+      state.heatmapDatasets = state.heatmapDatasets.filter((name) => name !== datasetName);
+    }
+    renderHeatmapDatasetPicker();
     renderHeatmap();
   });
 
-  $("#spreadDatasets").addEventListener("click", () => {
-    state.heatmapDatasets = highSpreadDatasets(state.metric, 12);
-    fillHeatmapDatasetSelect();
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#heatmapDatasetPicker")) {
+      setHeatmapDatasetMenuOpen(false);
+    }
+  });
+
+  $("#selectAllDatasets").addEventListener("click", () => {
+    state.heatmapDatasets = derived.datasetNames.slice();
+    renderHeatmapDatasetPicker();
     renderHeatmap();
-  });
-
-  $("#resetDatasets").addEventListener("click", () => {
-    state.heatmapDatasets = derived.datasetNames.slice(0, 12);
-    fillHeatmapDatasetSelect();
-    renderHeatmap();
-  });
-
-  $("#workbookSelect").addEventListener("change", (event) => {
-    state.tableWorkbook = event.target.value;
-    state.tableSheet = data.rawWorkbooks[state.tableWorkbook]?.sheetOrder[0] || "";
-    fillSheetSelect();
-    renderRawTable();
-  });
-
-  $("#sheetSelect").addEventListener("change", (event) => {
-    state.tableSheet = event.target.value;
-    renderRawTable();
-  });
-
-  $("#tableSearch").addEventListener("input", (event) => {
-    state.tableQuery = event.target.value.trim().toLowerCase();
-    renderRawTable();
   });
 }
 
@@ -201,99 +273,141 @@ function render() {
   activateTab();
   renderHeader();
   renderOverview();
+  renderRanking();
   renderMethods();
   renderDatasets();
   renderHeatmap();
-  renderRawTable();
 }
 
 function renderHeader() {
   const generated = new Date(data.generatedAt);
-  const sheetCount = data.sourceFiles.reduce((sum, source) => sum + source.sheets.length, 0);
-  $("#sourceStamp").textContent = `${data.sourceFiles.length} workbooks, ${sheetCount} sheets, generated ${generated.toLocaleString()}`;
+  $("#sourceStamp").textContent = `${data.methods.length} methods across ${data.datasets.length} datasets, generated ${generated.toLocaleString()}`;
   $("#globalMetric").value = state.metric;
 }
 
 function renderOverview() {
-  const sheetCount = data.sourceFiles.reduce((sum, source) => sum + source.sheets.length, 0);
+  const methods = sortOverviewMethods(getOverviewRows());
+  const visibleBigCategories = unique(methods.map((method) => displayBigCategory(method)).filter(Boolean));
+  const visibleSmallCategories = unique(methods.map((method) => displaySmallCategory(method)).filter(Boolean));
+  const visibleVenues = unique(methods.map((method) => method.venue).filter(Boolean));
   const stats = [
-    ["Methods", data.methods.length],
-    ["Datasets", data.datasets.length],
-    ["Metrics", data.metrics.length],
-    ["Sheets", sheetCount],
+    ["Methods", methods.length],
+    ["Big Categories", visibleBigCategories.length],
+    ["Small Categories", visibleSmallCategories.length],
+    ["Venues", visibleVenues.length],
   ];
-  $("#statsGrid").innerHTML = stats
+  $("#overviewStats").innerHTML = stats
     .map(([label, value]) => `<div class="stat"><strong>${formatCount(value)}</strong><span>${escapeHtml(label)}</span></div>`)
     .join("");
+  $("#overviewCountLabel").textContent = `${methods.length} / ${data.methods.length} methods`;
 
-  const visibleMethods = filterByGlobalQuery(data.methods).sort((a, b) => metricValue(b) - metricValue(a));
-  const topMethods = visibleMethods.slice(0, 12).map((method) => ({
-    label: `${method.id} ${method.method}`,
-    sublabel: method.category,
-    value: metricValue(method),
-    color: categoryColor(method.category),
-    title: method.displayName,
-  }));
-  $("#topMethodsLabel").textContent = state.metric;
-  renderHorizontalBars("#topMethodsChart", topMethods, { max: 1, valueLabel: state.metric });
-
-  const categoryItems = derived.categories
-    .map((category) => {
-      const methods = data.methods.filter((method) => method.category === category);
-      return {
-        label: category,
-        value: average(methods.map((method) => metricValue(method))),
-        color: categoryColor(category),
-      };
+  const taxonomyGroups = visibleBigCategories
+    .map((bigCategory) => {
+      const groupMethods = methods.filter((method) => displayBigCategory(method) === bigCategory);
+      const smallCategories = unique(groupMethods.map((method) => displaySmallCategory(method)).filter(Boolean)).sort();
+      return { bigCategory, groupMethods, smallCategories };
     })
-    .filter((item) => item.value !== null)
-    .sort((a, b) => b.value - a.value);
-  $("#categoryMeansLabel").textContent = state.metric;
-  renderHorizontalBars("#categoryChart", categoryItems, { max: 1, valueLabel: state.metric });
+    .sort((a, b) => b.groupMethods.length - a.groupMethods.length || a.bigCategory.localeCompare(b.bigCategory));
 
-  const runtimeItems = filterByGlobalQuery(data.methods)
-    .filter((method) => isFiniteNumber(method.runtime.average) && isFiniteNumber(metricValue(method)))
-    .map((method) => ({
-      x: Math.log10(Number(method.runtime.average) + 1),
-      y: metricValue(method),
-      xRaw: method.runtime.average,
-      category: method.category,
-      label: `${method.id} ${method.method}`,
-    }));
-  renderScatter("#runtimeScatter", runtimeItems, {
-    xLabel: "log10(seconds + 1)",
-    yLabel: state.metric,
-    title: "Runtime vs metric",
-    formatX: (value) => formatNumber(Math.pow(10, value) - 1, 2),
-  });
+  $("#overviewTaxonomy").innerHTML = taxonomyGroups.length
+    ? taxonomyGroups
+        .map(
+          (group) => `<article class="taxonomy-card">
+            <div class="taxonomy-head">
+              <strong>${escapeHtml(group.bigCategory)}</strong>
+              <span>${formatCount(group.groupMethods.length)} methods</span>
+            </div>
+            <div class="chip-row">
+              ${group.smallCategories.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}
+            </div>
+          </article>`
+        )
+        .join("")
+    : `<div class="empty-state">No matching taxonomy groups.</div>`;
 
-  const hyperItems = filterByGlobalQuery(data.methods)
-    .filter((method) => isFiniteNumber(method.hyperparameter.count) && isFiniteNumber(metricValue(method)))
-    .map((method) => ({
-      x: method.hyperparameter.count,
-      y: metricValue(method),
-      xRaw: method.hyperparameter.count,
-      category: method.category,
-      label: `${method.id} ${method.method}`,
-    }));
-  renderScatter("#hyperScatter", hyperItems, {
-    xLabel: "hyperparameter count",
-    yLabel: state.metric,
-    title: "Hyperparameter count vs metric",
-    formatX: (value) => formatNumber(value, 0),
-  });
+  $("#overviewTable").innerHTML = methods.length
+    ? `<table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Paper</th>
+          <th>Big Category</th>
+          <th>Small Category</th>
+          <th>Venue</th>
+          <th class="numeric">Year</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${methods
+          .map((method) => {
+            const selected = method.index === state.selectedMethodIndex ? " is-selected" : "";
+            return `<tr class="method-row${selected}" data-method-index="${method.index}">
+              <td><span class="pill">${escapeHtml(method.id)}</span></td>
+              <td>
+                <div class="method-name">
+                  <strong>${escapeHtml(method.method)}</strong>
+                  <span>${escapeHtml(methodSubtitle(method))}</span>
+                </div>
+              </td>
+              <td>${escapeHtml(displayBigCategory(method) || "NA")}</td>
+              <td>${escapeHtml(displaySmallCategory(method) || "NA")}</td>
+              <td>${escapeHtml(method.venue || "NA")}</td>
+              <td class="numeric">${formatMaybeNumber(method.year, 0)}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`
+    : `<div class="empty-state">No matching methods.</div>`;
+}
 
-  $("#sourceGrid").innerHTML = data.sourceFiles
-    .map((source) => {
-      const rows = source.sheets.reduce((sum, sheet) => sum + sheet.rowCount, 0);
-      return `<div class="source-item">
-        <strong title="${escapeAttr(source.file)}">${escapeHtml(source.file)}</strong>
-        <span>${source.sheets.length} sheets</span>
-        <span>${formatCount(rows)} rows</span>
-        <span>${formatCount(Math.round(source.bytes / 1024))} KB</span>
-      </div>`;
-    })
-    .join("");
+function renderRanking() {
+  const methods = getRankingRows();
+  const selectedMethod = methods.find((method) => method.index === state.selectedMethodIndex) || methods[0] || null;
+
+  $("#rankingCountLabel").textContent = `${methods.length} methods - ${state.metric} average rank (lower is better)`;
+  $("#rankingTable").innerHTML = methods.length
+    ? `<table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Method</th>
+          <th>Big Category</th>
+          <th>Small Category</th>
+          <th>Venue</th>
+          <th class="numeric">Year</th>
+          <th class="numeric">${escapeHtml(state.metric)} Avg Rank</th>
+          <th class="numeric">Overall Avg Rank</th>
+          <th class="numeric">Datasets</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${methods
+          .map((method, index) => {
+            const selected = selectedMethod && method.index === selectedMethod.index ? " is-selected" : "";
+            return `<tr class="method-row${selected}" data-method-index="${method.index}">
+              <td>${index + 1}</td>
+              <td>
+                <div class="method-name">
+                  <strong>${escapeHtml(method.method)}</strong>
+                  <span>${escapeHtml(methodSubtitle(method))}</span>
+                </div>
+              </td>
+              <td>${escapeHtml(displayBigCategory(method) || "NA")}</td>
+              <td>${escapeHtml(displaySmallCategory(method) || "NA")}</td>
+              <td>${escapeHtml(method.venue || "NA")}</td>
+              <td class="numeric">${formatMaybeNumber(method.year, 0)}</td>
+              <td class="numeric">${formatMaybeNumber(metricRankValue(method), 3)}</td>
+              <td class="numeric">${formatMaybeNumber(overallRankValue(method), 3)}</td>
+              <td class="numeric">${formatCount(rankDatasetCount(method))}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`
+    : `<div class="empty-state">No matching ranking rows.</div>`;
+
+  renderRankingDetail(selectedMethod);
 }
 
 function renderMethods() {
@@ -309,6 +423,7 @@ function renderMethods() {
           <th>Method</th>
           <th>Category</th>
           <th>Venue</th>
+          <th class="numeric">Year</th>
           <th class="numeric">${escapeHtml(state.metric)}</th>
           <th class="numeric">Runtime</th>
           <th class="numeric">Params</th>
@@ -326,8 +441,9 @@ function renderMethods() {
                   <span>${escapeHtml(methodSubtitle(method))}</span>
                 </div>
               </td>
-              <td>${escapeHtml(method.category)}</td>
+              <td>${escapeHtml(displaySmallCategory(method) || "NA")}</td>
               <td>${escapeHtml(method.venue)}</td>
+              <td class="numeric">${formatMaybeNumber(method.year, 0)}</td>
               <td class="numeric">${formatNumber(metricValue(method), 4)}</td>
               <td class="numeric">${formatRuntime(method.runtime.average)}</td>
               <td class="numeric">${formatMaybeNumber(method.hyperparameter.count, 0)}</td>
@@ -375,8 +491,10 @@ function renderMethodDetail() {
     </div>
 
     <div class="meta-grid">
-      <div class="meta-box"><span>Category</span><strong>${escapeHtml(method.category || "NA")}</strong></div>
+      <div class="meta-box"><span>Big Category</span><strong>${escapeHtml(displayBigCategory(method) || "NA")}</strong></div>
+      <div class="meta-box"><span>Small Category</span><strong>${escapeHtml(displaySmallCategory(method) || "NA")}</strong></div>
       <div class="meta-box"><span>Venue</span><strong>${escapeHtml(method.venue || "NA")}</strong></div>
+      <div class="meta-box"><span>Year</span><strong>${formatMaybeNumber(method.year, 0)}</strong></div>
       <div class="meta-box"><span>Avg. runtime</span><strong>${formatRuntime(method.runtime.average)}</strong></div>
       <div class="meta-box"><span>Timeouts</span><strong>${formatMaybeNumber(method.runtime.timeouts, 0)}</strong></div>
     </div>
@@ -388,7 +506,7 @@ function renderMethodDetail() {
 
     <div>
       <h3 class="detail-subhead">Parameter Setup</h3>
-      <p class="detail-text">${escapeHtml(method.parameterSetup || "NA")}</p>
+      <div class="detail-text parameter-content">${formatParameterSetup(method.parameterSetup)}</div>
     </div>
 
     <div>
@@ -402,6 +520,48 @@ function renderMethodDetail() {
           </div>`)
           .join("") || `<p class="detail-text">NA</p>`}
       </div>
+    </div>
+  </div>`;
+  typesetMath($("#methodDetail"));
+}
+
+function renderRankingDetail(method) {
+  if (!method) {
+    $("#rankingDetail").innerHTML = `<div class="empty-state">No ranking detail available.</div>`;
+    return;
+  }
+
+  const rankRows = data.metrics
+    .map((metric) => {
+      const metricRank = method.averageRanks?.metrics?.[metric] || {};
+      const active = metric === state.metric ? " is-active" : "";
+      return `<div class="rank-profile-row${active}">
+        <span>${escapeHtml(metric)}</span>
+        <strong>${formatMaybeNumber(metricRank.meanRank, 3)}</strong>
+        <em>${formatCount(metricRank.datasetCount || 0)} datasets</em>
+      </div>`;
+    })
+    .join("");
+
+  $("#rankingDetail").innerHTML = `<div class="detail-body">
+    <div class="detail-title">
+      <span class="pill">${escapeHtml(method.id)}</span>
+      <h2>${escapeHtml(method.method)}</h2>
+      <p>${escapeHtml(methodSubtitle(method))}</p>
+    </div>
+
+    <div class="meta-grid">
+      <div class="meta-box"><span>${escapeHtml(state.metric)} Avg Rank</span><strong>${formatMaybeNumber(metricRankValue(method), 3)}</strong></div>
+      <div class="meta-box"><span>Overall Avg Rank</span><strong>${formatMaybeNumber(overallRankValue(method), 3)}</strong></div>
+      <div class="meta-box"><span>Big Category</span><strong>${escapeHtml(displayBigCategory(method) || "NA")}</strong></div>
+      <div class="meta-box"><span>Small Category</span><strong>${escapeHtml(displaySmallCategory(method) || "NA")}</strong></div>
+      <div class="meta-box"><span>Venue</span><strong>${escapeHtml(method.venue || "NA")}</strong></div>
+      <div class="meta-box"><span>Year</span><strong>${formatMaybeNumber(method.year, 0)}</strong></div>
+    </div>
+
+    <div>
+      <h3 class="detail-subhead">Rank Profile Across Metrics</h3>
+      <div class="rank-profile">${rankRows}</div>
     </div>
   </div>`;
 }
@@ -434,9 +594,9 @@ function renderDatasets() {
     "#datasetTopChart",
     ranked.slice(0, 12).map((row) => ({
       label: `${row.method.id} ${row.method.method}`,
-      sublabel: row.method.category,
+      sublabel: displaySmallCategory(row.method),
       value: row.mean,
-      color: categoryColor(row.method.category),
+      color: categoryColor(displaySmallCategory(row.method)),
       title: row.method.displayName,
     })),
     { max: 1, valueLabel: state.metric }
@@ -449,6 +609,7 @@ function renderDatasets() {
         <th>Rank</th>
         <th>Method</th>
         <th>Category</th>
+        <th class="numeric">Year</th>
         <th class="numeric">Mean</th>
         <th class="numeric">Std.</th>
         <th class="numeric">Average ${escapeHtml(state.metric)}</th>
@@ -460,7 +621,8 @@ function renderDatasets() {
         .map((row, index) => `<tr class="method-row" data-method-index="${row.method.index}">
           <td>${index + 1}</td>
           <td><div class="method-name"><strong>${escapeHtml(row.method.method)}</strong><span>${escapeHtml(methodSubtitle(row.method))}</span></div></td>
-          <td>${escapeHtml(row.method.category)}</td>
+          <td>${escapeHtml(displaySmallCategory(row.method) || "NA")}</td>
+          <td class="numeric">${formatMaybeNumber(row.method.year, 0)}</td>
           <td class="numeric">${formatNumber(row.mean, 4)}</td>
           <td class="numeric">${formatMaybeNumber(row.std, 4)}</td>
           <td class="numeric">${formatNumber(metricValue(row.method), 4)}</td>
@@ -471,12 +633,17 @@ function renderDatasets() {
 }
 
 function renderHeatmap() {
-  const selectedDatasets = state.heatmapDatasets.length ? state.heatmapDatasets : derived.datasetNames.slice(0, 12);
-  const methods = data.methods
-    .filter((method) => state.heatmapCategory === "all" || method.category === state.heatmapCategory)
+  $("#heatmapCategory").value = state.heatmapCategory;
+  $("#heatmapMethodCount").value = state.heatmapMethodCount;
+  const selectedDatasets = selectedHeatmapDatasets();
+  const filteredMethods = data.methods
+    .filter((method) => state.heatmapCategory === "all" || displaySmallCategory(method) === state.heatmapCategory)
     .filter((method) => matchesGlobalQuery(method))
-    .sort((a, b) => metricValue(b) - metricValue(a))
-    .slice(0, state.heatmapMethodCount);
+    .sort((a, b) => metricValue(b) - metricValue(a));
+  const methods =
+    state.heatmapMethodCount === "all"
+      ? filteredMethods
+      : filteredMethods.slice(0, Number(state.heatmapMethodCount) || filteredMethods.length);
 
   const allValues = [];
   methods.forEach((method) => {
@@ -530,67 +697,56 @@ function renderHeatmap() {
   </table>`;
 }
 
-function renderRawTable() {
-  const workbook = data.rawWorkbooks[state.tableWorkbook];
-  const sheet = workbook?.sheets[state.tableSheet];
-  if (!workbook || !sheet) {
-    $("#rawTable").innerHTML = `<div class="empty-state">No sheet selected.</div>`;
-    return;
-  }
-
-  $("#workbookSelect").value = state.tableWorkbook;
-  $("#sheetSelect").value = state.tableSheet;
-  $("#rawTableTitle").textContent = state.tableSheet;
-
-  const query = state.tableQuery;
-  const rows = query
-    ? sheet.rows.filter((row) => row.some((cell) => String(cell).toLowerCase().includes(query)))
-    : sheet.rows;
-
-  $("#rawTableLabel").textContent = `${rows.length} / ${sheet.rowCount} rows - ${sheet.columnCount} columns`;
-  const headers = sheet.headers.map((header, index) => header || `Column ${index + 1}`);
-  if (!rows.length) {
-    $("#rawTable").innerHTML = `<div class="empty-state">No matching rows.</div>`;
-    return;
-  }
-
-  $("#rawTable").innerHTML = `<table>
-    <thead>
-      <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
-    </thead>
-    <tbody>
-      ${rows
-        .map((row) => `<tr>${headers
-          .map((_, index) => {
-            const value = row[index] ?? "";
-            const numeric = isFiniteNumber(value) ? " numeric" : "";
-            return `<td class="${numeric}" title="${escapeAttr(rawValue(value))}">${escapeHtml(rawValue(value))}</td>`;
-          })
-          .join("")}</tr>`)
-        .join("")}
-    </tbody>
-  </table>`;
-}
-
 function activateTab() {
   $$(".tab").forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === state.tab));
   $$(".tab-panel").forEach((panel) => panel.classList.toggle("is-active", panel.id === state.tab));
 }
 
-function fillSheetSelect() {
-  const workbook = data.rawWorkbooks[state.tableWorkbook];
-  const sheets = workbook ? workbook.sheetOrder : [];
-  fillSelect($("#sheetSelect"), sheets.map((sheetName) => option(sheetName, sheetName)), state.tableSheet);
+function renderHeatmapDatasetPicker() {
+  const list = $("#heatmapDatasetsList");
+  const summary = $("#heatmapDatasetsSummary");
+  const button = $("#heatmapDatasetsButton");
+  if (!list || !summary || !button) {
+    return;
+  }
+  const selected = new Set(state.heatmapDatasets);
+  list.innerHTML = data.datasets
+    .map(
+      (dataset) => `<label class="multi-select-option">
+        <input type="checkbox" data-dataset-name="${escapeAttr(dataset.name)}" ${selected.has(dataset.name) ? "checked" : ""}>
+        <span>${escapeHtml(dataset.label)}</span>
+      </label>`
+    )
+    .join("");
+  const summaryText = heatmapDatasetSummary();
+  summary.textContent = summaryText;
+  button.title = summaryText;
 }
 
-function fillHeatmapDatasetSelect() {
-  const select = $("#heatmapDatasets");
-  select.innerHTML = data.datasets
-    .map((dataset) => `<option value="${escapeAttr(dataset.name)}">${escapeHtml(dataset.label)}</option>`)
-    .join("");
-  Array.from(select.options).forEach((item) => {
-    item.selected = state.heatmapDatasets.includes(item.value);
-  });
+function setHeatmapDatasetMenuOpen(isOpen) {
+  const menu = $("#heatmapDatasetsMenu");
+  const button = $("#heatmapDatasetsButton");
+  if (!menu || !button) {
+    return;
+  }
+  menu.hidden = !isOpen;
+  button.setAttribute("aria-expanded", isOpen ? "true" : "false");
+}
+
+function heatmapDatasetSummary() {
+  const selected = selectedHeatmapDatasets();
+  if (!selected.length) {
+    return "No datasets selected";
+  }
+  if (selected.length === data.datasets.length) {
+    return `All datasets (${selected.length})`;
+  }
+  if (selected.length <= 2) {
+    return selected
+      .map((datasetName) => derived.datasetByName.get(datasetName)?.label || datasetName)
+      .join(", ");
+  }
+  return `${selected.length} datasets selected`;
 }
 
 function option(value, label) {
@@ -606,7 +762,7 @@ function fillSelect(element, options, value) {
   }
 }
 
-function handleMethodPick(event) {
+function handleMethodOpen(event) {
   const row = event.target.closest("[data-method-index]");
   if (!row) {
     return;
@@ -616,9 +772,61 @@ function handleMethodPick(event) {
   render();
 }
 
+function handleRankingPick(event) {
+  const row = event.target.closest("[data-method-index]");
+  if (!row) {
+    return;
+  }
+  state.selectedMethodIndex = Number(row.dataset.methodIndex);
+  render();
+}
+
+function getOverviewRows() {
+  return data.methods
+    .filter((method) => state.overviewBigCategory === "all" || displayBigCategory(method) === state.overviewBigCategory)
+    .filter((method) => state.overviewCategory === "all" || displaySmallCategory(method) === state.overviewCategory)
+    .filter((method) => state.overviewVenue === "all" || method.venue === state.overviewVenue)
+    .filter((method) => matchesGlobalQuery(method));
+}
+
+function sortOverviewMethods(methods) {
+  const copy = methods.slice();
+  copy.sort((a, b) => {
+    if (state.overviewSort === "year-asc") {
+      return compareNullable(methodYear(a), methodYear(b)) || a.method.localeCompare(b.method);
+    }
+    if (state.overviewSort === "method-asc") {
+      return a.method.localeCompare(b.method);
+    }
+    if (state.overviewSort === "venue-asc") {
+      return (a.venue || "").localeCompare(b.venue || "") || a.method.localeCompare(b.method);
+    }
+    return compareNullable(methodYear(b), methodYear(a)) || a.method.localeCompare(b.method);
+  });
+  return copy;
+}
+
+function getRankingRows() {
+  const methods = data.methods
+    .filter((method) => state.rankingBigCategory === "all" || displayBigCategory(method) === state.rankingBigCategory)
+    .filter((method) => state.rankingCategory === "all" || displaySmallCategory(method) === state.rankingCategory)
+    .filter((method) => state.rankingVenue === "all" || method.venue === state.rankingVenue)
+    .filter((method) => matchesGlobalQuery(method))
+    .filter((method) => metricRankValue(method) !== null);
+
+  methods.sort((a, b) => {
+    return (
+      compareNullable(metricRankValue(a), metricRankValue(b)) ||
+      compareNullable(overallRankValue(a), overallRankValue(b)) ||
+      a.method.localeCompare(b.method)
+    );
+  });
+  return methods;
+}
+
 function getMethodRows() {
   return data.methods
-    .filter((method) => state.methodCategory === "all" || method.category === state.methodCategory)
+    .filter((method) => state.methodCategory === "all" || displaySmallCategory(method) === state.methodCategory)
     .filter((method) => state.methodVenue === "all" || method.venue === state.methodVenue)
     .filter((method) => matchesGlobalQuery(method));
 }
@@ -659,7 +867,10 @@ function matchesGlobalQuery(method) {
     method.displayName,
     method.experimentLabel,
     method.category,
+    method.smallCategory,
+    method.bigCategory,
     method.venue,
+    method.year,
     method.parameterSetup,
     method.hyperparameter.countedTerms,
   ]
@@ -669,8 +880,19 @@ function matchesGlobalQuery(method) {
 }
 
 function methodSubtitle(method) {
-  const parts = [method.id, method.citationKey, method.venue].filter(Boolean);
-  return parts.join(" - ");
+  return "";
+}
+
+function displaySmallCategory(method) {
+  return method?.smallCategory || method?.category || "";
+}
+
+function displayBigCategory(method) {
+  return method?.bigCategory || "";
+}
+
+function methodYear(method) {
+  return isFiniteNumber(method?.year) ? Number(method.year) : null;
 }
 
 function metricValue(method) {
@@ -678,8 +900,38 @@ function metricValue(method) {
   return isFiniteNumber(value) ? Number(value) : 0;
 }
 
+function metricRankValue(method, metric = state.metric) {
+  const value = method?.averageRanks?.metrics?.[metric]?.meanRank;
+  return isFiniteNumber(value) ? Number(value) : null;
+}
+
+function overallRankValue(method) {
+  const value = method?.averageRanks?.overallMeanRank;
+  return isFiniteNumber(value) ? Number(value) : null;
+}
+
+function rankDatasetCount(method, metric = state.metric) {
+  const value = method?.averageRanks?.metrics?.[metric]?.datasetCount;
+  return isFiniteNumber(value) ? Number(value) : 0;
+}
+
 function sortableRuntime(method) {
   return isFiniteNumber(method.runtime.average) ? Number(method.runtime.average) : Number.POSITIVE_INFINITY;
+}
+
+function compareNullable(left, right) {
+  const leftValid = isFiniteNumber(left);
+  const rightValid = isFiniteNumber(right);
+  if (!leftValid && !rightValid) {
+    return 0;
+  }
+  if (!leftValid) {
+    return 1;
+  }
+  if (!rightValid) {
+    return -1;
+  }
+  return Number(left) - Number(right);
 }
 
 function datasetValue(methodIndex, metric, datasetName, kind) {
@@ -694,22 +946,8 @@ function datasetValue(methodIndex, metric, datasetName, kind) {
   return isFiniteNumber(value) ? Number(value) : null;
 }
 
-function highSpreadDatasets(metric, count) {
-  const matrix = data.matrix.mean[metric];
-  if (!matrix) {
-    return derived.datasetNames.slice(0, count);
-  }
-  return matrix.datasets
-    .map((datasetName, datasetIndex) => {
-      const values = matrix.values.map((row) => row[datasetIndex]).filter(isFiniteNumber).map(Number);
-      return {
-        datasetName,
-        spread: values.length ? Math.max(...values) - Math.min(...values) : -1,
-      };
-    })
-    .sort((a, b) => b.spread - a.spread)
-    .slice(0, count)
-    .map((item) => item.datasetName);
+function selectedHeatmapDatasets() {
+  return derived.datasetNames.filter((datasetName) => state.heatmapDatasets.includes(datasetName));
 }
 
 function renderHorizontalBars(selector, items, options = {}) {
@@ -894,6 +1132,14 @@ function rawValue(value) {
   return String(value);
 }
 
+function formatParameterSetup(value) {
+  const text = rawValue(value).trim();
+  if (!text || text.toLowerCase() === "none") {
+    return "NA";
+  }
+  return escapeHtml(text);
+}
+
 function shortName(value, maxLength) {
   const text = rawValue(value);
   if (text.length <= maxLength) {
@@ -914,6 +1160,13 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value);
+}
+
+function typesetMath(element) {
+  if (!element || !window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
+    return;
+  }
+  window.MathJax.typesetPromise([element]).catch(() => {});
 }
 
 function showLoadError(error) {
